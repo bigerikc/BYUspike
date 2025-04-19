@@ -1,0 +1,50 @@
+body {
+    background-color: rgb(255, 250, 181);
+}
+
+a {
+    color: rgb(255, 255, 255);
+}
+
+.espnlink {
+    color: blue;
+}
+
+.common{
+    position: absolute;
+}
+
+.nav{
+    position: relative;
+    float: right;
+    font-size: 80%;
+}
+
+.footer{
+    position: fixed;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
+    font-size: 65%;
+    text-align: center;
+    color: rgb(255, 255, 255);
+    background-color: rgba(0, 0, 0, 0.522);
+}
+
+.header{
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    text-align: center;
+    font-size: 235%;
+    font-style: italic;
+    z-index: -1;
+    background-image: url("https://perpetualmotion.org/wp-content/uploads/2023/04/DSC_3232web-1.jpg");
+    color: rgb(255, 248, 239);
+}
+
+.content{
+    left: 8%;
+    right: 50%;
+    top: 170px;
+}

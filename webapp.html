@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Column Catcher Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Styles remain the same */
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #f0f8ff; /* AliceBlue */
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 2rem;
+            min-height: 100vh;
+            margin: 0;
+        }
+        h1.main-title {
+            color: #4682B4; /* SteelBlue */
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            text-shadow: 2px 2px 0px #fff;
+        }
+        #game-container {
+            position: relative;
+            border: 4px solid #4682B4; /* SteelBlue border */
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+            background-color: #B0E0E6; /* PowderBlue */
+            overflow: hidden;
+        }
+        #gameCanvas {
+            display: block;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #ui-overlay > div { /* Style for menus */
+            pointer-events: all;
+            background: rgba(70, 130, 180, 0.9); /* SteelBlue semi-transparent */
+            padding: 2rem;
+            border-radius: 10px;
+            border: 2px solid #f0f8ff; /* AliceBlue border */
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            color: #fff;
+        }
+        .game-info {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            font-size: 1.2rem;
+            color: #191970; /* MidnightBlue */
+            text-shadow: 1px 1px 1px rgba(255,255,255,0.7);
+            pointer-events: none;
+            display: flex;
+            gap: 20px;
+        }
+        button {
+            font-family: 'Press Start 2P', cursive;
+            padding: 0.8rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            background-color: #32CD32; /* LimeGreen */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            text-transform: uppercase;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 3px 0 #228B22; /* ForestGreen */
+        }
+        button:hover {
+            background-color: #228B22;
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #228B22;
+        }
+        #startMenu h2, #gameOverMenu h2 {
+            color: #FFD700; /* Gold */
+            margin-bottom: 1rem;
+        }
+        p {
+           font-size: 1.1rem;
+           color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="main-title">Column Catch</h1>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="500" height="600"></canvas>
+        <div id="ui-overlay">
+             <div class="game-info">
+                <div id="scoreDisplay">Score: 0</div>
+                <div id="livesDisplay">Lives: 3</div>
+            </div>
+            <div id="startMenu">
+                <h2>Get Ready!</h2>
+                <p>Use Left/Right Arrows</p>
+                <p>Catch Spikeballs!</p>
+                <p>Avoid Rocks!</p>
+                <button id="startButton">Start Game</button>
+            </div>
+            <div id="gameOverMenu" style="display: none;">
+                <h2>Game Over!</h2>
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <button id="restartButton">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Wait for DOM to load before running game logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Get DOM Elements ---
+            const canvas = document.getElementById('gameCanvas');
+            if (!canvas) {
+                console.error("Fatal Error: Canvas element not found!");
+                return;
+            }
+            let ctx = null;
+            try {
+                ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error("Canvas context is null or unsupported.");
+            } catch (error) {
+                console.error("Fatal Error getting canvas context:", error);
+                return;
+            }
+
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const livesDisplay = document.getElementById('livesDisplay');
+            const startMenu = document.getElementById('startMenu');
+            const gameOverMenu = document.getElementById('gameOverMenu');
+            const finalScoreDisplay = document.getElementById('finalScore');
+            const startButton = document.getElementById('startButton');
+            const restartButton = document.getElementById('restartButton');
+
+             if (!scoreDisplay || !livesDisplay || !startMenu || !gameOverMenu || !finalScoreDisplay || !startButton || !restartButton) {
+                 console.error("Fatal Error: One or more UI elements not found!");
+                 return;
+             }
+
+            // --- Game Constants ---
+            const NUM_COLUMNS = 5;
+            const COLUMN_WIDTH = canvas.width / NUM_COLUMNS;
+            const PLAYER_WIDTH = COLUMN_WIDTH * 0.6;
+            const PLAYER_HEIGHT = 25;
+            const PLAYER_COLOR = '#FF6347'; // Tomato
+            const SPIKEBALL_COLOR = '#FFD700'; // Gold
+            // --- Updated Rock Color ---
+            const ROCK_COLOR = '#808080'; // Gray
+            const ROCK_OUTLINE_COLOR = '#696969'; // DimGray
+            const ITEM_RADIUS = COLUMN_WIDTH * 0.3; // Base size reference
+            const ROCK_SIDE_LENGTH = ITEM_RADIUS * 1.6; // Make square slightly smaller than circle diameter
+            const BASE_ITEM_SPEED = 2;
+            const ITEM_SPAWN_RATE = 0.02; // Probability per frame
+            const INITIAL_LIVES = 3;
+            const CANVAS_BACKGROUND = '#B0E0E6'; // PowderBlue
+
+            // --- Game Variables ---
+            let gameState = 'menu';
+            let score = 0;
+            let lives = INITIAL_LIVES;
+            let playerColumn = Math.floor(NUM_COLUMNS / 2);
+            let fallingItems = [];
+            let itemSpeedMultiplier = 1.0;
+            let currentItemSpawnRate = ITEM_SPAWN_RATE;
+            let lastTime = 0;
+            let animationFrameId = null;
+            let keysPressed = {}; // To handle key presses
+
+            // --- Player Object ---
+            const player = {
+                width: PLAYER_WIDTH,
+                height: PLAYER_HEIGHT,
+                y: canvas.height - PLAYER_HEIGHT - 10,
+                color: PLAYER_COLOR
+            };
+
+
+            // --- Event Listeners ---
+            document.addEventListener('keydown', handleInput);
+            document.addEventListener('keyup', (e) => {
+                 keysPressed[e.key] = false;
+            });
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', startGame);
+
+
+            function handleInput(e) {
+                 keysPressed[e.key] = true;
+                 if (gameState !== 'playing') return;
+
+                 if (e.key === 'ArrowLeft' || e.key === 'a') {
+                     if (playerColumn > 0) playerColumn--;
+                     e.preventDefault();
+                 } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                     if (playerColumn < NUM_COLUMNS - 1) playerColumn++;
+                     e.preventDefault();
+                 }
+            }
+
+            // --- Game Initialization ---
+            function startGame() {
+                if (gameState === 'playing') return;
+                score = 0;
+                lives = INITIAL_LIVES;
+                playerColumn = Math.floor(NUM_COLUMNS / 2);
+                fallingItems = [];
+                itemSpeedMultiplier = 1.0;
+                currentItemSpawnRate = ITEM_SPAWN_RATE;
+                updateScoreDisplay();
+                updateLivesDisplay();
+                startMenu.style.display = 'none';
+                gameOverMenu.style.display = 'none';
+                scoreDisplay.style.display = 'block';
+                livesDisplay.style.display = 'block';
+                gameState = 'playing';
+                lastTime = performance.now();
+                if (animationFrameId === null) { gameLoop(lastTime); }
+            }
+
+            // --- Update Functions ---
+            function update(deltaTime) {
+                itemSpeedMultiplier += 0.00005 * deltaTime;
+                currentItemSpawnRate += 0.00001 * deltaTime;
+                spawnItems();
+                updateItems(deltaTime);
+                checkCollisions();
+                removeOffscreenItems();
+            }
+
+            function spawnItems() {
+                if (Math.random() < currentItemSpawnRate) {
+                    const column = Math.floor(Math.random() * NUM_COLUMNS);
+                    const x = column * COLUMN_WIDTH + COLUMN_WIDTH / 2;
+                    const type = Math.random() < 0.6 ? 'spikeball' : 'rock';
+                    const speed = BASE_ITEM_SPEED + Math.random() * 1.5;
+                    // Use ITEM_RADIUS for spikeball size reference, ROCK_SIDE_LENGTH for rock size reference
+                    const size = (type === 'rock') ? ROCK_SIDE_LENGTH : ITEM_RADIUS;
+                    fallingItems.push({ x, y: -size, type, speed, column, radius: ITEM_RADIUS, side: ROCK_SIDE_LENGTH }); // Add side length for rocks
+                }
+            }
+
+            function updateItems(deltaTime) {
+                for (let i = fallingItems.length - 1; i >= 0; i--) {
+                    const item = fallingItems[i];
+                    item.y += item.speed * itemSpeedMultiplier;
+                }
+            }
+
+            function checkCollisions() {
+                for (let i = fallingItems.length - 1; i >= 0; i--) {
+                    const item = fallingItems[i];
+                    // Adjust vertical check based on shape (circle radius vs square half-height)
+                    const itemTop = (item.type === 'rock') ? item.y - item.side / 2 : item.y - item.radius;
+                    const itemBottom = (item.type === 'rock') ? item.y + item.side / 2 : item.y + item.radius;
+
+                    if (itemBottom > player.y && itemTop < player.y + player.height) {
+                        if (item.column === playerColumn) {
+                            if (item.type === 'spikeball') {
+                                score++;
+                                updateScoreDisplay();
+                                fallingItems.splice(i, 1);
+                            } else if (item.type === 'rock') {
+                                lives--;
+                                updateLivesDisplay();
+                                fallingItems.splice(i, 1);
+                                if (lives <= 0) {
+                                    triggerGameOver();
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            function removeOffscreenItems() {
+                for (let i = fallingItems.length - 1; i >= 0; i--) {
+                    // Adjust offscreen check based on shape
+                     const itemTop = (fallingItems[i].type === 'rock') ? fallingItems[i].y - fallingItems[i].side / 2 : fallingItems[i].y - fallingItems[i].radius;
+                    if (itemTop > canvas.height) {
+                        fallingItems.splice(i, 1);
+                    }
+                }
+            }
+
+            // --- Game State Management ---
+            function triggerGameOver() {
+                gameState = 'gameOver';
+                finalScoreDisplay.textContent = score;
+                gameOverMenu.style.display = 'flex';
+                scoreDisplay.style.display = 'none';
+                livesDisplay.style.display = 'none';
+                if (animationFrameId) { animationFrameId = null; }
+            }
+
+            function updateScoreDisplay() { scoreDisplay.textContent = `Score: ${score}`; }
+            function updateLivesDisplay() { livesDisplay.textContent = `Lives: ${lives}`; }
+
+            // --- Drawing Functions ---
+            function draw() {
+                drawColumns();
+                drawPlayer();
+                drawItems();
+            }
+
+            function drawColumns() {
+                ctx.strokeStyle = 'rgba(70, 130, 180, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 3]);
+                for (let i = 1; i < NUM_COLUMNS; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * COLUMN_WIDTH, 0);
+                    ctx.lineTo(i * COLUMN_WIDTH, canvas.height);
+                    ctx.stroke();
+                }
+                ctx.setLineDash([]);
+            }
+
+            function drawPlayer() {
+                const playerX = playerColumn * COLUMN_WIDTH + (COLUMN_WIDTH - player.width) / 2;
+                ctx.fillStyle = player.color;
+                ctx.fillRect(playerX, player.y, player.width, player.height);
+                ctx.strokeStyle = '#A52A2A';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(playerX, player.y, player.width, player.height);
+            }
+
+            function drawItems() {
+                fallingItems.forEach(item => {
+                    if (item.type === 'spikeball') {
+                        // Draw Spikeball (Circle)
+                        ctx.beginPath();
+                        ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = SPIKEBALL_COLOR;
+                        ctx.fill();
+                        ctx.strokeStyle = '#DAA520';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.closePath();
+                    } else if (item.type === 'rock') {
+                        // --- Draw Rock (Square) ---
+                        // Calculate top-left corner from center position (item.x, item.y)
+                        const rectX = item.x - item.side / 2;
+                        const rectY = item.y - item.side / 2;
+
+                        // Fill the square
+                        ctx.fillStyle = ROCK_COLOR; // Use gray color
+                        ctx.fillRect(rectX, rectY, item.side, item.side);
+
+                        // Draw the outline
+                        ctx.strokeStyle = ROCK_OUTLINE_COLOR; // Use darker gray outline
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(rectX, rectY, item.side, item.side);
+                    }
+                });
+            }
+
+            // --- Main Game Loop ---
+            function gameLoop(timestamp) {
+                let deltaTime = timestamp - lastTime;
+                if (!deltaTime || deltaTime > 100) { deltaTime = 16.67; }
+                lastTime = timestamp;
+
+                ctx.fillStyle = CANVAS_BACKGROUND;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (gameState === 'playing') {
+                    try {
+                        update(deltaTime);
+                        draw();
+                    } catch (error) {
+                         console.error("Error during game update/draw:", error);
+                         triggerGameOver();
+                    }
+                } else {
+                     drawColumns();
+                }
+
+                if (gameState !== 'gameOver') {
+                    animationFrameId = requestAnimationFrame(gameLoop);
+                } else {
+                    animationFrameId = null;
+                }
+            }
+
+            // --- Initial Setup ---
+            scoreDisplay.style.display = 'none';
+            livesDisplay.style.display = 'none';
+            gameOverMenu.style.display = 'none';
+            startMenu.style.display = 'flex';
+            if (ctx) { requestAnimationFrame(gameLoop); }
+             else { console.error("Initial loop not started because canvas context is invalid."); }
+
+        }); // End of DOMContentLoaded listener
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,18 @@
+h3.section-subheading.text-muted {
+    color: #bbd6ed !important;
+    font-weight: bolder;
+  }
+
+header {
+    font-family: 'Courier New', Courier, monospace !important;
+    color: rgb(232, 248, 255) !important;
+}
+
+  footer .row {
+    justify-content: center;
+  }
+  
+  footer .col-lg-4 {
+    text-align: center;
+  }
+  
